@@ -1,294 +1,178 @@
 package bencode
 
 import (
-	"math"
+	"bytes"
 	"testing"
 )
 
-func TestEncoder(t *testing.T) {
-	t.Run("writeByteString", func(t *testing.T) {
-		testCases := map[string]struct {
-			input    string
-			expected string
-		}{
-			"normal": {
-				input:    "foo",
-				expected: "3:foo",
-			},
-			"empty": {
-				input:    "",
-				expected: "0:",
-			},
-			"special characters": {
-				input:    "foo:bar",
-				expected: "7:foo:bar",
-			},
-		}
+func TestEncodeString(t *testing.T) {
+	tests := []struct {
+		input       string
+		expected    string
+		expectedErr error
+	}{
+		{"spam", "4:spam", nil},
+		{"", "0:", nil},
+		{"hello", "5:hello", nil},
+		{"foo", "3:foo", nil},
+		{"0123456789", "10:0123456789", nil},
+	}
+	for _, test := range tests {
+		t.Run(test.input, func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			encoder := NewEncoder(&buf)
+			err := encoder.EncodeString(test.input)
+			if err != test.expectedErr {
+				t.Errorf("expected error %v, got %v for input %q", test.expectedErr, err, test.input)
+			}
+			if buf.String() != test.expected {
+				t.Errorf("expected %q, got %q for input %q", test.expected, buf.String(), test.input)
+			}
+		})
+	}
+}
 
-		for name, tc := range testCases {
-			tc := tc
-			t.Run(name, func(t *testing.T) {
-				t.Parallel()
-				e := &encoder{}
-				e.writeByteString(tc.input)
+func TestEncodeInt(t *testing.T) {
+	tests := []struct {
+		input       int64
+		expected    string
+		expectedErr error
+	}{
+		{123, "i123e", nil},
+		{-456, "i-456e", nil},
+		{0, "i0e", nil},
+	}
+	for _, test := range tests {
+		t.Run(test.expected, func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			encoder := NewEncoder(&buf)
+			err := encoder.EncodeInt(test.input)
+			if err != test.expectedErr {
+				t.Errorf("expected error %v, got %v for input %q", test.expectedErr, err, test.input)
+			}
+			if buf.String() != test.expected {
+				t.Errorf("expected %q, got %q for input %q", test.expected, buf.String(), test.input)
+			}
+		})
+	}
+}
 
-				got := e.String()
-				if got != tc.expected {
-					t.Fatalf("expected %q, got %q", tc.expected, got)
-				}
-			})
-		}
-	})
-
-	t.Run("writeInteger", func(t *testing.T) {
-		testCases := map[string]struct {
-			input    int64
-			expected string
-		}{
-			"positive": {
-				input:    42,
-				expected: "i42e",
-			},
-			"negative": {
-				input:    -42,
-				expected: "i-42e",
-			},
-			"zero": {
-				input:    0,
-				expected: "i0e",
-			},
-			"max positive": {
-				input:    math.MaxInt64,
-				expected: "i9223372036854775807e",
-			},
-			"max negative": {
-				input:    math.MinInt64,
-				expected: "i-9223372036854775808e",
-			},
-		}
-
-		for name, tc := range testCases {
-			tc := tc
-			t.Run(name, func(t *testing.T) {
-				t.Parallel()
-				e := &encoder{}
-				e.writeInteger(tc.input)
-
-				got := e.String()
-				if got != tc.expected {
-					t.Fatalf("expected %q, got %q", tc.expected, got)
-				}
-			})
-		}
-	})
-
-	t.Run("writeUnsignedInteger", func(t *testing.T) {
-		testCases := map[string]struct {
-			input    uint64
-			expected string
-		}{
-			"small": {
-				input:    42,
-				expected: "i42e",
-			},
-			"zero": {
-				input:    0,
-				expected: "i0e",
-			},
-			"max": {
-				input:    math.MaxUint64,
-				expected: "i18446744073709551615e",
-			},
-		}
-
-		for name, tc := range testCases {
-			tc := tc
-			t.Run(name, func(t *testing.T) {
-				t.Parallel()
-				e := &encoder{}
-				e.writeUnsignedInteger(tc.input)
-
-				got := e.String()
-				if got != tc.expected {
-					t.Fatalf("expected %q, got %q", tc.expected, got)
-				}
-			})
-		}
-	})
-
-	t.Run("writeInterface handle all integer types", func(t *testing.T) {
-		testCases := map[string]struct {
-			input    interface{}
-			expected string
-		}{
-			"int": {
-				input:    int(42),
-				expected: "i42e",
-			},
-			"int8": {
-				input:    int8(42),
-				expected: "i42e",
-			},
-			"int16": {
-				input:    int16(42),
-				expected: "i42e",
-			},
-			"int32": {
-				input:    int32(42),
-				expected: "i42e",
-			},
-			"int64": {
-				input:    int64(42),
-				expected: "i42e",
-			},
-			"uint": {
-				input:    uint(42),
-				expected: "i42e",
-			},
-			"uint8": {
-				input:    uint8(42),
-				expected: "i42e",
-			},
-			"uint16": {
-				input:    uint16(42),
-				expected: "i42e",
-			},
-			"uint32": {
-				input:    uint32(42),
-				expected: "i42e",
-			},
-			"uint64": {
-				input:    uint64(42),
-				expected: "i42e",
-			},
-			"max int": {
-				input:    int64(math.MaxInt64),
-				expected: "i9223372036854775807e",
-			},
-			"max negative int": {
-				input:    int64(math.MinInt64),
-				expected: "i-9223372036854775808e",
-			},
-			"negative int": {
-				input:    int(-42),
-				expected: "i-42e",
-			},
-		}
-
-		for name, tc := range testCases {
-			tc := tc
-			t.Run(name, func(t *testing.T) {
-				t.Parallel()
-				e := &encoder{}
-				e.writeInterfaceType(tc.input)
-
-				got := e.String()
-				if got != tc.expected {
-					t.Fatalf("expected %q, got %q", tc.expected, got)
-				}
-			})
-		}
-	})
-
-	t.Run("writeList", func(t *testing.T) {
-		testCases := map[string]struct {
-			input    []interface{}
-			expected string
-		}{
-			"normal": {
-				input:    []interface{}{"foo", 42},
-				expected: "l3:fooi42ee",
-			},
-			"empty": {
-				input:    []interface{}{},
-				expected: "le",
-			},
-			"nested empty list": {
-				input:    []interface{}{[]interface{}{}},
-				expected: "llee",
-			},
-			"mixed types": {
-				input:    []interface{}{"foo", 42, []interface{}{"bar", 84}},
-				expected: "l3:fooi42el3:bari84eee",
-			},
-		}
-
-		for name, tc := range testCases {
-			tc := tc
-			t.Run(name, func(t *testing.T) {
-				t.Parallel()
-				e := &encoder{}
-				e.writeList(tc.input)
-
-				got := e.String()
-				if got != tc.expected {
-					t.Fatalf("expected %q, got %q", tc.expected, got)
-				}
-			})
-		}
-	})
-
-	t.Run("writeDictionary", func(t *testing.T) {
-		testCases := map[string]struct {
-			input    map[string]interface{}
-			expected string
-		}{
-			"normal": {
-				input: map[string]interface{}{
-					"foo": "bar",
-					"baz": 42,
+func TestEncodeList(t *testing.T) {
+	tests := []struct {
+		input       []interface{}
+		expected    string
+		expectedErr error
+	}{
+		{[]interface{}{"spam", "eggs"}, "l4:spam4:eggse", nil},
+		{[]interface{}{int64(123), int64(456)}, "li123ei456ee", nil},
+		{[]interface{}{}, "le", nil},
+		{
+			[]interface{}{
+				map[string]interface{}{
+					"key1": "value1",
+					"key2": int64(42),
 				},
-				expected: "d3:bazi42e3:foo3:bare",
+				map[string]interface{}{
+					"key3": "value3",
+				},
 			},
-			"nested": {
-				input: map[string]interface{}{
-					"foo": "bar",
-					"baz": map[string]interface{}{
-						"qux":  42,
-						"fizz": []interface{}{"buzz", "buzzz"},
+			"ld4:key16:value14:key2i42eed4:key36:value3ee",
+			nil,
+		},
+		{
+			[]interface{}{
+				map[string]interface{}{
+					"nested": map[string]interface{}{
+						"innerKey": "innerValue",
 					},
-					"eee": []interface{}{},
 				},
-				expected: "d3:bazd4:fizzl4:buzz5:buzzze3:quxi42ee3:eeele3:foo3:bare",
 			},
-			"empty": {
-				input:    map[string]interface{}{},
-				expected: "de",
-			},
-			"nested empty dictionary": {
-				input: map[string]interface{}{
-					"foo": map[string]interface{}{},
-				},
-				expected: "d3:foodee",
-			},
-			"empty string value": {
-				input: map[string]interface{}{
-					"foo": "",
-				},
-				expected: "d3:foo0:e",
-			},
-			"keys sorted as raw strings": {
-				input: map[string]interface{}{
-					"1":  "one",
-					"10": "ten",
-					"2":  "two",
-				},
-				expected: "d1:13:one2:103:ten1:23:twoe",
-			},
-		}
+			"ld6:nestedd8:innerKey10:innerValueeee",
+			nil,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.expected, func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			encoder := NewEncoder(&buf)
+			err := encoder.EncodeList(test.input)
+			if err != test.expectedErr {
+				t.Errorf("expected error %v, got %v for input %q", test.expectedErr, err, test.input)
+			}
+			if buf.String() != test.expected {
+				t.Errorf("expected %q, got %q for input %q", test.expected, buf.String(), test.input)
+			}
+		})
+	}
+}
 
-		for name, tc := range testCases {
-			tc := tc
-			t.Run(name, func(t *testing.T) {
-				t.Parallel()
-				e := &encoder{}
-				e.writeDictionary(tc.input)
-
-				got := e.String()
-				if got != tc.expected {
-					t.Fatalf("expected %q, got %q", tc.expected, got)
-				}
-			})
-		}
-	})
+func TestEncodeDict(t *testing.T) {
+	tests := []struct {
+		input       map[string]interface{}
+		expected    string
+		expectedErr error
+	}{
+		{
+			map[string]interface{}{
+				"info": map[string]interface{}{
+					"files": []interface{}{
+						map[string]interface{}{
+							"length": int64(12345),
+							"path":   []interface{}{"filename"},
+						},
+					},
+					"name":         "example.torrent",
+					"piece length": int64(262144),
+				},
+			},
+			"d4:infod5:filesld6:lengthi12345e4:pathl8:filenameeee4:name15:example.torrent12:piece lengthi262144eee",
+			nil,
+		},
+		{
+			map[string]interface{}{
+				"info": map[string]interface{}{
+					"length":       int64(12345),
+					"name":         "example.torrent",
+					"piece length": int64(262144),
+				},
+			},
+			"d4:infod6:lengthi12345e4:name15:example.torrent12:piece lengthi262144eee",
+			nil,
+		},
+		{
+			map[string]interface{}{
+				"b": "valueB",
+				"a": "valueA",
+				"c": "valueC",
+			},
+			"d1:a6:valueA1:b6:valueB1:c6:valueCe",
+			nil,
+		},
+		{
+			map[string]interface{}{
+				"z": "last",
+				"m": "middle",
+				"a": "first",
+			},
+			"d1:a5:first1:m6:middle1:z4:laste",
+			nil,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.expected, func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			encoder := NewEncoder(&buf)
+			err := encoder.EncodeDict(test.input)
+			if err != test.expectedErr {
+				t.Errorf("expected error %v, got %v for input %q", test.expectedErr, err, test.input)
+			}
+			if buf.String() != test.expected {
+				t.Errorf("expected %q, got %q for input %q", test.expected, buf.String(), test.input)
+			}
+		})
+	}
 }
